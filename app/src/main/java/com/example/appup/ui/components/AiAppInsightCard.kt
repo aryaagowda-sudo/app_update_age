@@ -341,13 +341,23 @@ fun AiAppInsightCard(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Analysis generated: ${insight.formattedTimestamp}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = CyberTextMuted,
-                                    fontSize = 11.sp
+                            Column {
+                                Text(
+                                    text = "Analysis generated: ${insight.formattedTimestamp}",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = CyberTextMuted,
+                                        fontSize = 11.sp
+                                    )
                                 )
-                            )
+                                Text(
+                                    text = insight.modelSource,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = CyberPrimary.copy(alpha = 0.85f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                )
+                            }
                             if (insight.isCached) {
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
