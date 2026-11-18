@@ -1,5 +1,11 @@
 package com.example.appup.ui.screens
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,9 +43,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
@@ -53,11 +61,14 @@ import com.example.appup.data.model.DeviceHealth
 import com.example.appup.data.model.SystemHealthAudit
 import com.example.appup.ui.components.AppHealthCard
 import com.example.appup.ui.components.HealthScoreGauge
+import com.example.appup.ui.components.SecurityCoachCard
+import com.example.appup.ui.components.UpdateOwlCard
 import com.example.appup.ui.theme.CyberBackground
 import com.example.appup.ui.theme.CyberBorder
 import com.example.appup.ui.theme.CyberGreen
 import com.example.appup.ui.theme.CyberGreenBg
 import com.example.appup.ui.theme.CyberGreenBorder
+import com.example.appup.ui.theme.CyberOrange
 import com.example.appup.ui.theme.CyberPrimary
 import com.example.appup.ui.theme.CyberRed
 import com.example.appup.ui.theme.CyberRedBg
@@ -84,6 +95,9 @@ fun DashboardScreen(
     onOptimizeClick: () -> Unit,
     onAppClick: (AppHealthSummary) -> Unit,
     onViewAllAppsClick: () -> Unit,
+    onReviewApp: (AppHealthSummary) -> Unit,
+    onReviewAttentionApps: () -> Unit,
+    onOpenAppSettings: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val totalApps = analysisReport?.totalApps ?: allApps.size
@@ -95,6 +109,7 @@ fun DashboardScreen(
 
     // Take exactly the 3 oldest updated applications dynamically
     val oldestThreeApps = (analysisReport?.sortedAppsOldestFirst ?: allApps).take(3)
+    val topOldestApp = oldestThreeApps.firstOrNull()
 
     val ram = deviceHealth?.ram
     val storage = deviceHealth?.storage
@@ -108,6 +123,18 @@ fun DashboardScreen(
     val storageTotalGb = storage?.let { String.format("%.1f", it.totalBytes.toDouble() / (1024 * 1024 * 1024)) } ?: "0"
     val storagePercent = storage?.usedPercent ?: 0
 
+    // Rotating scan icon animation
+    val infiniteTransition = rememberInfiniteTransition(label = "ScanSpinner")
+    val scanRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(850, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "Rotation"
+    )
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -115,7 +142,7 @@ fun DashboardScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. AppGuard Logo and Brand Header
+        // 1. AppGuard Logo, Brand & Welcome Header
         item {
             AppGuardDashboardHeader(lastScanTime = lastScanTime)
         }
@@ -128,7 +155,26 @@ fun DashboardScreen(
             )
         }
 
-        // 3. Applications Scanned Summary Card
+        // 3. Card 1: SecurityCoach (Offline Intelligent Assistant)
+        item {
+            SecurityCoachCard(
+                analysisReport = analysisReport,
+                allApps = allApps,
+                onReviewApp = onReviewApp
+            )
+        }
+
+        // 4. Card 2: UpdateOwl (Smart Reminder Assistant)
+        item {
+            UpdateOwlCard(
+                attentionCount = attentionCount,
+                oldestApp = topOldestApp,
+                onReviewNow = onReviewAttentionApps,
+                onOpenSettings = onOpenAppSettings
+            )
+        }
+
+        // 5. Card 3: Recent App Health Summary Card
         item {
             ApplicationsScannedSummaryCard(
                 totalApps = totalApps,
@@ -137,7 +183,7 @@ fun DashboardScreen(
             )
         }
 
-        // 4. Three Status Indicator Cards (Green: Healthy, Yellow: Aging, Red: Attention)
+        // Status Breakdown Cards (Green: Healthy, Yellow: Aging, Red: Attention)
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -175,7 +221,7 @@ fun DashboardScreen(
             }
         }
 
-        // 5. Scan Device Action Button
+        // 6. Scan Device Action Button
         item {
             Button(
                 onClick = onScanClick,
@@ -205,7 +251,9 @@ fun DashboardScreen(
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier
+                            .size(22.dp)
+                            .then(if (isScanning) Modifier.rotate(scanRotation) else Modifier),
                         tint = Color(0xFF090D14)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
@@ -220,7 +268,7 @@ fun DashboardScreen(
             }
         }
 
-        // 6. Three Oldest Updated Applications
+        // 7. Three Oldest Updated Applications
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -261,79 +309,20 @@ fun DashboardScreen(
                     border = BorderStroke(1.dp, CyberBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
                         Text(
-                            text = "No applications detected on device.",
-                            color = CyberTextSecondary,
-                            style = MaterialTheme.typography.bodyMedium
+                            text = "No applications detected.",
+                            style = MaterialTheme.typography.bodyMedium.copy(color = CyberTextMuted)
                         )
                     }
                 }
             }
         } else {
-            items(oldestThreeApps) { app ->
+            items(oldestThreeApps, key = { it.packageName }) { app ->
                 AppHealthCard(
                     app = app,
                     onClick = { onAppClick(app) }
                 )
-            }
-        }
-
-        // 7. Rule-Based Recommendations Card
-        if (analysisReport != null && analysisReport.globalRecommendations.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Security & Maintenance Recommendations",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = CyberTextPrimary
-                    )
-                )
-            }
-
-            items(analysisReport.globalRecommendations) { rec ->
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = CyberSurface,
-                    border = BorderStroke(1.dp, CyberBorder),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF042436)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = CyberPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Text(
-                            text = rec,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = CyberTextPrimary,
-                                fontWeight = FontWeight.Normal
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
             }
         }
 
@@ -402,7 +391,7 @@ fun DashboardScreen(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(text = "${battery?.percentage ?: 0}%", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = CyberTextPrimary))
-                        Text(text = "${battery?.temperatureCelsius ?: 0}°C", style = MaterialTheme.typography.bodySmall, color = CyberTextMuted)
+                        Text(text = if (battery?.isCharging == true) "Charging" else "Discharging", style = MaterialTheme.typography.bodySmall, color = CyberTextMuted)
                     }
                 }
             }
@@ -411,98 +400,112 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun AppGuardDashboardHeader(lastScanTime: String) {
+fun AppGuardDashboardHeader(
+    lastScanTime: String,
+    modifier: Modifier = Modifier
+) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
         color = CyberSurface,
         border = BorderStroke(1.dp, CyberBorder)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF042436))
-                        .border(1.dp, Color(0xFF006B99), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "AppGuard Logo",
-                        tint = CyberPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(14.dp))
-
-                Column {
-                    Text(
-                        text = "AppGuard",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 20.sp,
-                            color = CyberTextPrimary,
-                            letterSpacing = (-0.5).sp
-                        )
-                    )
-                    Text(
-                        text = "CYBERSECURITY HEALTH MONITOR",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CyberPrimary,
-                            letterSpacing = 0.5.sp
-                        )
-                    )
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(Color(0xFF06331E))
-                    .border(1.dp, Color(0xFF008940), CircleShape)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(CyberGreen)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "ACTIVE",
-                        color = CyberGreen,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 9.sp
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF042436))
+                            .border(1.dp, Color(0xFF006B99), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "AppGuard Logo",
+                            tint = CyberPrimary,
+                            modifier = Modifier.size(22.dp)
                         )
-                    )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column {
+                        Text(
+                            text = "AppGuard",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 20.sp,
+                                color = CyberTextPrimary,
+                                letterSpacing = (-0.5).sp
+                            )
+                        )
+                        Text(
+                            text = "CYBERSECURITY HEALTH MONITOR",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CyberPrimary,
+                                letterSpacing = 0.5.sp
+                            )
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color(0xFF06331E))
+                        .border(1.dp, Color(0xFF008940), CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(CyberGreen)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "ACTIVE",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                color = CyberGreen
+                            )
+                        )
+                    }
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Welcome back! AppGuard is actively monitoring your installed apps.",
+                style = MaterialTheme.typography.bodySmall.copy(color = CyberTextSecondary)
+            )
         }
     }
 }
 
 @Composable
-private fun ApplicationsScannedSummaryCard(
+fun ApplicationsScannedSummaryCard(
     totalApps: Int,
     upToDateApps: Int,
-    upToDateScore: Int
+    upToDateScore: Int,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         color = CyberSurface,
         border = BorderStroke(1.dp, CyberBorder)
@@ -537,20 +540,21 @@ private fun ApplicationsScannedSummaryCard(
                     text = "$upToDateScore%",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (upToDateScore >= 70) CyberGreen else CyberYellow
+                        color = if (upToDateScore >= 70) CyberGreen else if (upToDateScore >= 40) CyberYellow else CyberYellow
                     )
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             LinearProgressIndicator(
                 progress = { (upToDateScore / 100f).coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp),
-                color = if (upToDateScore >= 70) CyberGreen else CyberYellow,
-                trackColor = Color(0xFF1B2230),
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                color = if (upToDateScore >= 70) CyberGreen else if (upToDateScore >= 40) CyberYellow else CyberYellow,
+                trackColor = Color(0xFF1E2838),
                 strokeCap = StrokeCap.Round
             )
         }
@@ -558,7 +562,7 @@ private fun ApplicationsScannedSummaryCard(
 }
 
 @Composable
-private fun StatusMetricCard(
+fun StatusMetricCard(
     title: String,
     subtitle: String,
     count: Int,
@@ -571,50 +575,46 @@ private fun StatusMetricCard(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
         color = CyberSurface,
-        border = BorderStroke(1.dp, borderColor.copy(alpha = 0.6f))
+        border = BorderStroke(1.dp, CyberBorder)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 14.dp, horizontal = 12.dp),
+                .padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(bgColor)
-                    .border(1.dp, borderColor, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .border(1.dp, borderColor, RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "$count",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 22.sp,
                         color = accentColor
                     )
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    color = CyberTextPrimary,
-                    fontSize = 13.sp
+                    color = CyberTextPrimary
                 )
             )
-
-            Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = CyberTextMuted,
-                    fontSize = 10.sp
+                    fontSize = 10.sp,
+                    color = CyberTextMuted
                 )
             )
         }

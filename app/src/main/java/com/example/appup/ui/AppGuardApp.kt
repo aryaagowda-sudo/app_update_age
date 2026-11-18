@@ -1,6 +1,8 @@
 package com.example.appup.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,10 +41,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.appup.ui.screens.AnalyticsScreen
 import com.example.appup.ui.screens.AppDetailScreen
 import com.example.appup.ui.screens.AppsScreen
 import com.example.appup.ui.screens.DashboardScreen
-import com.example.appup.ui.screens.HistoryScreen
 import com.example.appup.ui.screens.InsightsScreen
 import com.example.appup.ui.theme.CyberBackground
 import com.example.appup.ui.theme.CyberPrimary
@@ -103,7 +105,7 @@ fun AppGuardApp(
                             text = when (state.selectedTab) {
                                 1 -> "Installed Applications"
                                 2 -> "Intelligent Insights"
-                                3 -> "Scan History"
+                                3 -> "App Health Analytics"
                                 else -> "AppGuard"
                             },
                             style = MaterialTheme.typography.titleLarge.copy(
@@ -131,7 +133,7 @@ fun AppGuardApp(
             }
         },
         bottomBar = {
-            // Module 5 Requirement: Bottom navigation with: 1. Home, 2. Applications, 3. Insights, 4. History
+            // Section 6 Requirement: Bottom navigation with: 1. Home, 2. Applications, 3. Insights, 4. Analytics
             NavigationBar(
                 containerColor = CyberSurface,
                 tonalElevation = 8.dp
@@ -181,8 +183,8 @@ fun AppGuardApp(
                 NavigationBarItem(
                     selected = state.selectedTab == 3,
                     onClick = { viewModel.setSelectedTab(3) },
-                    icon = { Icon(Icons.Default.Refresh, contentDescription = "History") },
-                    label = { Text("History") },
+                    icon = { Icon(Icons.Default.Refresh, contentDescription = "Analytics") },
+                    label = { Text("Analytics") },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = Color(0xFF090D14),
                         selectedTextColor = CyberPrimary,
@@ -229,44 +231,60 @@ fun AppGuardApp(
                     }
                 }
             } else {
-                when (state.selectedTab) {
-                    0 -> DashboardScreen(
-                        audit = state.healthAudit,
-                        deviceHealth = state.deviceHealth,
-                        analysisReport = state.analysisReport,
-                        allApps = state.allApps,
-                        isScanning = state.isLoading,
-                        isOptimizing = state.isOptimizing,
-                        lastScanTime = state.lastScanTime,
-                        onScanClick = { viewModel.loadData() },
-                        onOptimizeClick = { viewModel.runOptimization() },
-                        onAppClick = { viewModel.selectApp(it) },
-                        onViewAllAppsClick = { viewModel.setSelectedTab(1) }
-                    )
+                // Smooth animated transition between tabs
+                Crossfade(
+                    targetState = state.selectedTab,
+                    animationSpec = tween(durationMillis = 220),
+                    label = "TabCrossfade"
+                ) { currentTab ->
+                    when (currentTab) {
+                        0 -> DashboardScreen(
+                            audit = state.healthAudit,
+                            deviceHealth = state.deviceHealth,
+                            analysisReport = state.analysisReport,
+                            allApps = state.allApps,
+                            isScanning = state.isLoading,
+                            isOptimizing = state.isOptimizing,
+                            lastScanTime = state.lastScanTime,
+                            onScanClick = { viewModel.loadData() },
+                            onOptimizeClick = { viewModel.runOptimization() },
+                            onAppClick = { viewModel.selectApp(it) },
+                            onViewAllAppsClick = { viewModel.setSelectedTab(1) },
+                            onReviewApp = { viewModel.selectApp(it) },
+                            onReviewAttentionApps = {
+                                viewModel.setFilterOption(AppFilterOption.ATTENTION)
+                                viewModel.setSelectedTab(1)
+                            },
+                            onOpenAppSettings = { pkg -> viewModel.openAppSettings(context, pkg) }
+                        )
 
-                    1 -> AppsScreen(
-                        apps = state.filteredApps,
-                        allApps = state.allApps,
-                        searchQuery = state.searchQuery,
-                        filterOption = state.filterOption,
-                        sortOption = state.sortOption,
-                        onSearchChange = { viewModel.setSearchQuery(it) },
-                        onFilterChange = { viewModel.setFilterOption(it) },
-                        onSortChange = { viewModel.setSortOption(it) },
-                        onAppClick = { viewModel.selectApp(it) }
-                    )
+                        1 -> AppsScreen(
+                            apps = state.filteredApps,
+                            allApps = state.allApps,
+                            searchQuery = state.searchQuery,
+                            filterOption = state.filterOption,
+                            sortOption = state.sortOption,
+                            onSearchChange = { viewModel.setSearchQuery(it) },
+                            onFilterChange = { viewModel.setFilterOption(it) },
+                            onSortChange = { viewModel.setSortOption(it) },
+                            onAppClick = { viewModel.selectApp(it) }
+                        )
 
-                    2 -> InsightsScreen(
-                        analysisReport = state.analysisReport,
-                        allApps = state.allApps,
-                        scanHistory = state.scanHistory,
-                        onAppClick = { viewModel.selectApp(it) }
-                    )
+                        2 -> InsightsScreen(
+                            analysisReport = state.analysisReport,
+                            allApps = state.allApps,
+                            scanHistory = state.scanHistory,
+                            onAppClick = { viewModel.selectApp(it) }
+                        )
 
-                    3 -> HistoryScreen(
-                        scanHistory = state.scanHistory,
-                        onTriggerScan = { viewModel.loadData() }
-                    )
+                        3 -> AnalyticsScreen(
+                            analysisReport = state.analysisReport,
+                            allApps = state.allApps,
+                            scanHistory = state.scanHistory,
+                            lastScanTime = state.lastScanTime,
+                            onTriggerScan = { viewModel.loadData() }
+                        )
+                    }
                 }
             }
         }

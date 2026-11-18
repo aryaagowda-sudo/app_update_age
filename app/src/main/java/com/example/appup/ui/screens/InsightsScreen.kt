@@ -223,6 +223,57 @@ fun InsightsScreen(
             }
         }
 
+        // Section: UpdateOwl Contextual Recommendation Card
+        item {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = CyberSurface,
+                border = BorderStroke(1.dp, CyberBorder)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(CyberSurfaceElevated),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        com.example.appup.ui.components.OwlMascotIcon(size = 32.dp)
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "UpdateOwl's Recency Advisory",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = CyberPrimary
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (attentionCount > 0) {
+                                "Hoot! I've spotted $attentionCount apps that haven't received updates in 90+ days. Checking for updates guarantees you have the latest stability and security fixes."
+                            } else {
+                                "Hoot! Your apps are in tip-top shape with fresh updates. Keep up the good maintenance habits!"
+                            },
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = CyberTextSecondary,
+                                lineHeight = 18.sp
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
         // Section: Mandatory Security & Health Clarification Notice
         item {
             Surface(

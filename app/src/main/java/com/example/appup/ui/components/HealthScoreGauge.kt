@@ -63,8 +63,14 @@ fun HealthScoreGauge(
     val targetProgress = (score.toFloat() / 100f).coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(
         targetValue = targetProgress,
-        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
         label = "scoreProgress"
+    )
+
+    val animatedScore by androidx.compose.animation.core.animateIntAsState(
+        targetValue = score,
+        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+        label = "scoreInt"
     )
 
     val (scoreColor, statusText, statusBg, statusBorder) = when (status) {
@@ -132,7 +138,7 @@ fun HealthScoreGauge(
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "$score",
+                        text = "$animatedScore",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 34.sp,
