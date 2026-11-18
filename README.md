@@ -25,6 +25,7 @@ Daemon Hour hackathon project - team The-Outliers
 - **Resource Usage Tracking:** Monitor CPU, RAM, and battery drain per application.
 - **Anomaly & Threat Detection:** Alerts users regarding suspicious background activities or unauthorized permissions.
 - **Smart Optimizations:** One-tap recommendations to clean up RAM, close resource-heavy background processes, and extend battery life.
+- **Individual AI App Insights (Google Gemini & Firebase AI Logic):** On-demand, non-destructive AI lifecycle analysis for every installed application, evaluating update recency, platform compatibility, and maintenance state.
 - **Sleek, Modern UI:** Built natively for Android following modern Material Design principles.
 
 ---

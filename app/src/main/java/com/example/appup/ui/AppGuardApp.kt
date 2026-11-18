@@ -86,7 +86,12 @@ fun AppGuardApp(
             onBack = { viewModel.selectApp(null) },
             onOpenPlayStore = { pkg -> viewModel.openPlayStore(context, pkg) },
             onOpenSettings = { pkg -> viewModel.openAppSettings(context, pkg) },
-            onLaunchApp = { pkg -> viewModel.launchApp(context, pkg) }
+            onLaunchApp = { pkg -> viewModel.launchApp(context, pkg) },
+            insight = state.currentAiInsight,
+            isInsightLoading = state.isAiInsightLoading,
+            insightError = state.aiInsightError,
+            onGenerateInsight = { viewModel.generateAiInsight(state.selectedApp!!, forceRefresh = false) },
+            onRefreshInsight = { viewModel.generateAiInsight(state.selectedApp!!, forceRefresh = true) }
         )
         return
     }

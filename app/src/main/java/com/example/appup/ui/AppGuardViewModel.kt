@@ -8,7 +8,10 @@ import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import com.example.appup.data.analysis.AppAnalysisEngine
 import com.example.appup.data.analysis.AppAnalysisReport
+import com.example.appup.data.analysis.GeminiAppAnalysisService
+import com.example.appup.data.history.AiInsightRepository
 import com.example.appup.data.history.ScanHistoryRepository
+import com.example.appup.data.model.AiAppInsight
 import com.example.appup.data.model.AppHealthSummary
 import com.example.appup.data.model.AppUpdateCategory
 import com.example.appup.data.model.DeviceHealth
@@ -58,7 +61,10 @@ data class AppGuardUiState(
     val selectedApp: AppHealthSummary? = null,
     val scanHistory: List<ScanRecord> = emptyList(),
     val snackbarMessage: String? = null,
-    val lastScanTime: String = "Just now"
+    val lastScanTime: String = "Just now",
+    val currentAiInsight: AiAppInsight? = null,
+    val isAiInsightLoading: Boolean = false,
+    val aiInsightError: String? = null
 )
 
 class AppGuardViewModel(application: Application) : AndroidViewModel(application) {
@@ -69,6 +75,8 @@ class AppGuardViewModel(application: Application) : AndroidViewModel(application
     private val securityScanner = AppSecurityScanner(application.applicationContext)
     private val analysisEngine = AppAnalysisEngine()
     private val historyRepository = ScanHistoryRepository(application.applicationContext)
+    private val aiInsightRepository = AiInsightRepository(application.applicationContext)
+    private val geminiService = GeminiAppAnalysisService()
 
     private val _uiState = MutableStateFlow(
         AppGuardUiState(scanHistory = historyRepository.getScanHistory())
@@ -177,7 +185,61 @@ class AppGuardViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun selectApp(app: AppHealthSummary?) {
-        _uiState.value = _uiState.value.copy(selectedApp = app)
+        if (app == null) {
+            _uiState.value = _uiState.value.copy(
+                selectedApp = null,
+                currentAiInsight = null,
+                isAiInsightLoading = false,
+                aiInsightError = null
+            )
+        } else {
+            val cachedInsight = aiInsightRepository.getInsight(app.packageName)
+            _uiState.value = _uiState.value.copy(
+                selectedApp = app,
+                currentAiInsight = cachedInsight,
+                isAiInsightLoading = false,
+                aiInsightError = null
+            )
+        }
+    }
+
+    fun generateAiInsight(app: AppHealthSummary, forceRefresh: Boolean = false) {
+        if (!forceRefresh) {
+            val cached = aiInsightRepository.getInsight(app.packageName)
+            if (cached != null) {
+                _uiState.value = _uiState.value.copy(
+                    currentAiInsight = cached,
+                    isAiInsightLoading = false,
+                    aiInsightError = null
+                )
+                return
+            }
+        }
+
+        scope.launch {
+            _uiState.value = _uiState.value.copy(
+                isAiInsightLoading = true,
+                aiInsightError = null
+            )
+
+            try {
+                val insight = withContext(Dispatchers.IO) {
+                    geminiService.generateInsight(app)
+                }
+                withContext(Dispatchers.IO) {
+                    aiInsightRepository.saveInsight(insight)
+                }
+                _uiState.value = _uiState.value.copy(
+                    currentAiInsight = insight,
+                    isAiInsightLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isAiInsightLoading = false,
+                    aiInsightError = e.localizedMessage ?: "Failed to generate AI insight. Check network connection."
+                )
+            }
+        }
     }
 
     fun runOptimization() {

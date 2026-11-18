@@ -47,8 +47,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.appup.data.model.AiAppInsight
 import com.example.appup.data.model.AppHealthSummary
 import com.example.appup.data.model.AppUpdateCategory
+import com.example.appup.ui.components.AiAppInsightCard
 import com.example.appup.ui.components.AppIconImage
 import com.example.appup.ui.theme.CyberBackground
 import com.example.appup.ui.theme.CyberBorder
@@ -79,6 +81,11 @@ fun AppDetailScreen(
     onOpenPlayStore: (String) -> Unit,
     onOpenSettings: (String) -> Unit,
     onLaunchApp: (String) -> Unit,
+    insight: AiAppInsight? = null,
+    isInsightLoading: Boolean = false,
+    insightError: String? = null,
+    onGenerateInsight: () -> Unit = {},
+    onRefreshInsight: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val (categoryColor, categoryBg, categoryBorder) = when (app.updateCategory) {
@@ -274,6 +281,16 @@ fun AppDetailScreen(
                     )
                 }
             }
+
+            // Individual AI App Insight Card (Gemini · Firebase AI Logic)
+            AiAppInsightCard(
+                app = app,
+                insight = insight,
+                isLoading = isInsightLoading,
+                errorMessage = insightError,
+                onGenerate = onGenerateInsight,
+                onRefresh = onRefreshInsight
+            )
 
             // Version and Lifecycle Metadata Card
             Surface(
