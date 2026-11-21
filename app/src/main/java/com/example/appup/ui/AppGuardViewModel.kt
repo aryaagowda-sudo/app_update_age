@@ -1,5 +1,6 @@
 package com.example.appup.ui
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -19,6 +20,8 @@ import com.example.appup.data.model.ScanRecord
 import com.example.appup.data.model.SystemHealthAudit
 import com.example.appup.data.monitor.AppSecurityScanner
 import com.example.appup.data.monitor.SystemHealthMonitor
+import com.example.appup.notifications.AppGuardNotificationHelper
+import com.example.appup.worker.HealthScanReminderWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -64,7 +67,11 @@ data class AppGuardUiState(
     val lastScanTime: String = "Just now",
     val currentAiInsight: AiAppInsight? = null,
     val isAiInsightLoading: Boolean = false,
-    val aiInsightError: String? = null
+    val aiInsightError: String? = null,
+    val isReminderEnabled: Boolean = true,
+    val isSnoozed: Boolean = false,
+    val snoozeDaysRemaining: Int = 0,
+    val hasNotificationPermission: Boolean = false
 )
 
 class AppGuardViewModel(application: Application) : AndroidViewModel(application) {
@@ -77,13 +84,60 @@ class AppGuardViewModel(application: Application) : AndroidViewModel(application
     private val historyRepository = ScanHistoryRepository(application.applicationContext)
     private val aiInsightRepository = AiInsightRepository(application.applicationContext)
     private val geminiService = GeminiAppAnalysisService()
+    private val reminderPrefs = application.getSharedPreferences(
+        HealthScanReminderWorker.PREFS_NAME,
+        Context.MODE_PRIVATE
+    )
+    private val notificationHelper = AppGuardNotificationHelper(application.applicationContext)
 
     private val _uiState = MutableStateFlow(
-        AppGuardUiState(scanHistory = historyRepository.getScanHistory())
+        AppGuardUiState(
+            scanHistory = historyRepository.getScanHistory(),
+            isReminderEnabled = reminderPrefs.getBoolean(HealthScanReminderWorker.KEY_REMINDER_ENABLED, true),
+            hasNotificationPermission = notificationHelper.hasNotificationPermission()
+        )
     )
     val uiState: StateFlow<AppGuardUiState> = _uiState.asStateFlow()
 
+    val isReminderEnabled: Boolean
+        get() = _uiState.value.isReminderEnabled
+
     init {
+        // Initialize notification channels
+        notificationHelper.createNotificationChannels()
+
+        // Verify and update initial snooze and permission status
+        val initialReminderEnabled = reminderPrefs.getBoolean(
+            HealthScanReminderWorker.KEY_REMINDER_ENABLED,
+            true
+        )
+        val snoozeUntil = reminderPrefs.getLong(HealthScanReminderWorker.KEY_SNOOZE_UNTIL, 0L)
+        val now = System.currentTimeMillis()
+        val isCurrentlySnoozed = now < snoozeUntil
+        val daysRemaining = if (isCurrentlySnoozed) {
+            (((snoozeUntil - now) / (1000L * 60 * 60 * 24)) + 1).toInt()
+        } else {
+            0
+        }
+        val hasPermission = notificationHelper.hasNotificationPermission()
+
+        _uiState.value = _uiState.value.copy(
+            isReminderEnabled = initialReminderEnabled,
+            isSnoozed = isCurrentlySnoozed,
+            snoozeDaysRemaining = daysRemaining,
+            hasNotificationPermission = hasPermission
+        )
+
+        // Schedule periodic reminder background work if enabled
+        if (initialReminderEnabled) {
+            val intervalDays = reminderPrefs.getLong(HealthScanReminderWorker.KEY_INTERVAL_DAYS, 7L)
+            HealthScanReminderWorker.schedule(
+                context = application.applicationContext,
+                intervalDays = intervalDays,
+                updateExisting = false
+            )
+        }
+
         loadData()
     }
 
@@ -345,6 +399,118 @@ class AppGuardViewModel(application: Application) : AndroidViewModel(application
             }
         } catch (_: Exception) {
         }
+    }
+
+    /**
+     * Toggles or reschedules the background health scan periodic reminder.
+     * Persists setting in SharedPreferences.
+     */
+    fun scheduleHealthScanReminder(enabled: Boolean, intervalDays: Long = 7L) {
+        reminderPrefs.edit()
+            .putBoolean(HealthScanReminderWorker.KEY_REMINDER_ENABLED, enabled)
+            .putLong(HealthScanReminderWorker.KEY_INTERVAL_DAYS, intervalDays)
+            .apply()
+
+        if (enabled) {
+            HealthScanReminderWorker.schedule(
+                context = getApplication<Application>().applicationContext,
+                intervalDays = intervalDays,
+                updateExisting = true
+            )
+        } else {
+            HealthScanReminderWorker.cancel(getApplication<Application>().applicationContext)
+        }
+
+        _uiState.value = _uiState.value.copy(
+            isReminderEnabled = enabled,
+            snackbarMessage = if (enabled) {
+                "UpdateOwl reminders enabled (every $intervalDays days)."
+            } else {
+                "UpdateOwl reminders disabled."
+            }
+        )
+    }
+
+    /**
+     * Snoozes UpdateOwl health reminders for a specified duration in days (default 7 days).
+     */
+    fun snoozeReminders(days: Int = 7) {
+        val snoozeUntil = System.currentTimeMillis() + (days.toLong() * 24L * 60L * 60L * 1000L)
+        reminderPrefs.edit()
+            .putLong(HealthScanReminderWorker.KEY_SNOOZE_UNTIL, snoozeUntil)
+            .apply()
+
+        _uiState.value = _uiState.value.copy(
+            isSnoozed = true,
+            snoozeDaysRemaining = days,
+            snackbarMessage = "UpdateOwl reminders snoozed for $days days."
+        )
+    }
+
+    /**
+     * Cancels snooze and immediately resumes reminders.
+     */
+    fun unsnoozeReminders() {
+        reminderPrefs.edit()
+            .putLong(HealthScanReminderWorker.KEY_SNOOZE_UNTIL, 0L)
+            .apply()
+
+        _uiState.value = _uiState.value.copy(
+            isSnoozed = false,
+            snoozeDaysRemaining = 0,
+            snackbarMessage = "UpdateOwl reminders resumed."
+        )
+    }
+
+    /**
+     * Refreshes notification permission state for Android 13+ (API 33+).
+     */
+    fun checkNotificationPermission(): Boolean {
+        val granted = notificationHelper.hasNotificationPermission()
+        _uiState.value = _uiState.value.copy(hasNotificationPermission = granted)
+        return granted
+    }
+
+    /**
+     * Requests POST_NOTIFICATIONS permission via the host Activity.
+     */
+    fun requestNotificationPermission(activity: Activity) {
+        notificationHelper.requestNotificationPermission(activity)
+    }
+
+    /**
+     * Handles the callback when notification permission result is received.
+     */
+    fun onNotificationPermissionResult(isGranted: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            hasNotificationPermission = isGranted,
+            snackbarMessage = if (isGranted) {
+                "Notification permission granted."
+            } else {
+                "Notifications are muted in system settings."
+            }
+        )
+        if (isGranted && _uiState.value.isReminderEnabled) {
+            val intervalDays = reminderPrefs.getLong(HealthScanReminderWorker.KEY_INTERVAL_DAYS, 7L)
+            HealthScanReminderWorker.schedule(
+                context = getApplication<Application>().applicationContext,
+                intervalDays = intervalDays,
+                updateExisting = false
+            )
+        }
+    }
+
+    /**
+     * Dispatches an immediate test reminder for verification.
+     */
+    fun triggerTestOwlReminder() {
+        val report = _uiState.value.analysisReport
+        val oldest = report?.sortedAppsOldestFirst?.firstOrNull()
+        notificationHelper.dispatchOwlWeeklyReminder(
+            attentionAppsCount = report?.attentionCount ?: 0,
+            oldestAppName = oldest?.appName,
+            daysSinceUpdate = oldest?.daysSinceLastUpdate
+        )
     }
 
     override fun onCleared() {

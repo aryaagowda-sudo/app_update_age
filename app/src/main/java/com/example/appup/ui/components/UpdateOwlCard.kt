@@ -113,15 +113,24 @@ fun UpdateOwlCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val owlState = when {
+                    isSnoozed -> OwlState.SLEEPING_SNOOZED
+                    attentionCount > 0 -> OwlState.ALERT_WARNING
+                    else -> OwlState.CELEBRATING
+                }
+
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(48.dp)
                         .offset(y = floatOffset.dp)
                         .clip(CircleShape)
                         .background(CyberSurfaceElevated),
                     contentAlignment = Alignment.Center
                 ) {
-                    OwlMascotIcon(size = 36.dp)
+                    AnimatedOwl(
+                        state = owlState,
+                        size = 40.dp
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -332,91 +341,4 @@ fun UpdateOwlCard(
     }
 }
 
-/**
- * Clean vector-drawn Owl mascot with animated cyber-glowing eyes
- */
-@Composable
-fun OwlMascotIcon(
-    size: androidx.compose.ui.unit.Dp,
-    modifier: Modifier = Modifier
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "OwlBlink")
-    val eyeScaleY by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(120, delayMillis = 3500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "Blink"
-    )
 
-    Canvas(modifier = modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-
-        // Body / Head base
-        drawOval(
-            color = Color(0xFF1E2838),
-            topLeft = Offset(w * 0.12f, h * 0.15f),
-            size = Size(w * 0.76f, h * 0.72f)
-        )
-
-        // Ear tufts (feathers)
-        val leftEar = Path().apply {
-            moveTo(w * 0.22f, h * 0.28f)
-            lineTo(w * 0.18f, h * 0.08f)
-            lineTo(w * 0.38f, h * 0.18f)
-            close()
-        }
-        drawPath(leftEar, color = Color(0xFF1E2838))
-
-        val rightEar = Path().apply {
-            moveTo(w * 0.78f, h * 0.28f)
-            lineTo(w * 0.82f, h * 0.08f)
-            lineTo(w * 0.62f, h * 0.18f)
-            close()
-        }
-        drawPath(rightEar, color = Color(0xFF1E2838))
-
-        // Big round eye frames
-        val eyeRadius = w * 0.16f
-        val leftEyeCenter = Offset(w * 0.35f, h * 0.44f)
-        val rightEyeCenter = Offset(w * 0.65f, h * 0.44f)
-
-        drawCircle(color = Color(0xFF0F141E), radius = eyeRadius, center = leftEyeCenter)
-        drawCircle(color = Color(0xFF0F141E), radius = eyeRadius, center = rightEyeCenter)
-
-        // Glowing cyber pupils (animated blink)
-        val pupilRadius = eyeRadius * 0.55f
-        drawOval(
-            color = CyberPrimary,
-            topLeft = Offset(leftEyeCenter.x - pupilRadius, leftEyeCenter.y - pupilRadius * eyeScaleY),
-            size = Size(pupilRadius * 2, pupilRadius * 2 * eyeScaleY)
-        )
-        drawOval(
-            color = CyberPrimary,
-            topLeft = Offset(rightEyeCenter.x - pupilRadius, rightEyeCenter.y - pupilRadius * eyeScaleY),
-            size = Size(pupilRadius * 2, pupilRadius * 2 * eyeScaleY)
-        )
-
-        // Cute amber beak
-        val beakPath = Path().apply {
-            moveTo(w * 0.5f, h * 0.48f)
-            lineTo(w * 0.44f, h * 0.58f)
-            lineTo(w * 0.56f, h * 0.58f)
-            close()
-        }
-        drawPath(beakPath, color = CyberYellow)
-
-        // Subtle breast feather accents
-        drawArc(
-            color = Color(0xFF2A374E),
-            startAngle = 0f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = Offset(w * 0.38f, h * 0.68f),
-            size = Size(w * 0.24f, h * 0.12f)
-        )
-    }
-}

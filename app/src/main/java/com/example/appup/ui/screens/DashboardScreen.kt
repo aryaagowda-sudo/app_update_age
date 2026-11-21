@@ -59,8 +59,10 @@ import com.example.appup.data.model.AppHealthSummary
 import com.example.appup.data.model.AppUpdateCategory
 import com.example.appup.data.model.DeviceHealth
 import com.example.appup.data.model.SystemHealthAudit
+import com.example.appup.ui.components.AnimatedOwl
 import com.example.appup.ui.components.AppHealthCard
 import com.example.appup.ui.components.HealthScoreGauge
+import com.example.appup.ui.components.OwlState
 import com.example.appup.ui.components.SecurityCoachCard
 import com.example.appup.ui.components.UpdateOwlCard
 import com.example.appup.ui.theme.CyberBackground
@@ -142,9 +144,19 @@ fun DashboardScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. AppGuard Logo, Brand & Welcome Header
+        val headerOwlState = when {
+            isScanning -> OwlState.IDLE_VIGILANT
+            attentionCount > 0 -> OwlState.ALERT_WARNING
+            healthyCount > 0 && agingCount == 0 -> OwlState.CELEBRATING
+            else -> OwlState.IDLE_VIGILANT
+        }
+
+        // 1. AppGuard Logo, Brand & Welcome Header with Animated Guardian Mascot
         item {
-            AppGuardDashboardHeader(lastScanTime = lastScanTime)
+            AppGuardDashboardHeader(
+                lastScanTime = lastScanTime,
+                owlState = headerOwlState
+            )
         }
 
         // 2. Circular Overall Health Score Indicator
@@ -402,7 +414,8 @@ fun DashboardScreen(
 @Composable
 fun AppGuardDashboardHeader(
     lastScanTime: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    owlState: OwlState = OwlState.IDLE_VIGILANT
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -420,7 +433,10 @@ fun AppGuardDashboardHeader(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Box(
                         modifier = Modifier
                             .size(42.dp)
@@ -437,14 +453,22 @@ fun AppGuardDashboardHeader(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    // Interactive Animated Guardian Owl Mascot alongside AppGuard logo & title
+                    AnimatedOwl(
+                        state = owlState,
+                        size = 38.dp
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
 
                     Column {
                         Text(
                             text = "AppGuard",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 20.sp,
+                                fontSize = 19.sp,
                                 color = CyberTextPrimary,
                                 letterSpacing = (-0.5).sp
                             )
@@ -452,7 +476,7 @@ fun AppGuardDashboardHeader(
                         Text(
                             text = "CYBERSECURITY HEALTH MONITOR",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 9.sp,
+                                fontSize = 8.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = CyberPrimary,
                                 letterSpacing = 0.5.sp
