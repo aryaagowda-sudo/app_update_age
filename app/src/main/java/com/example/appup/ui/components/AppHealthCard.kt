@@ -3,7 +3,6 @@ package com.example.appup.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.example.appup.data.model.AppHealthSummary
 import com.example.appup.data.model.AppUpdateCategory
 import com.example.appup.ui.theme.CyberBorder
+import com.example.appup.ui.theme.CyberBorderGlow
 import com.example.appup.ui.theme.CyberGreen
 import com.example.appup.ui.theme.CyberGreenBg
 import com.example.appup.ui.theme.CyberGreenBorder
@@ -41,12 +42,14 @@ import com.example.appup.ui.theme.CyberRed
 import com.example.appup.ui.theme.CyberRedBg
 import com.example.appup.ui.theme.CyberRedBorder
 import com.example.appup.ui.theme.CyberSurface
+import com.example.appup.ui.theme.CyberSurfaceElevated
 import com.example.appup.ui.theme.CyberTextMuted
 import com.example.appup.ui.theme.CyberTextPrimary
 import com.example.appup.ui.theme.CyberTextSecondary
 import com.example.appup.ui.theme.CyberYellow
 import com.example.appup.ui.theme.CyberYellowBg
 import com.example.appup.ui.theme.CyberYellowBorder
+import com.example.appup.ui.theme.bounceClickable
 
 @Composable
 fun AppHealthCard(
@@ -61,15 +64,27 @@ fun AppHealthCard(
         AppUpdateCategory.NEEDS_ATTENTION -> Triple(CyberRed, CyberRedBg, CyberRedBorder)
     }
 
+    // Modern glowing cyber border gradient accentuating the app's health status
+    val glowingBorderBrush = Brush.linearGradient(
+        colors = listOf(
+            categoryColor.copy(alpha = 0.55f),
+            CyberBorderGlow.copy(alpha = 0.7f),
+            CyberBorder
+        )
+    )
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick),
+            .bounceClickable(
+                scaleDown = 0.97f,
+                onClick = onClick
+            ),
         shape = RoundedCornerShape(18.dp),
         color = CyberSurface,
-        border = BorderStroke(1.dp, CyberBorder),
-        tonalElevation = 1.dp
+        border = BorderStroke(1.2.dp, glowingBorderBrush),
+        tonalElevation = 2.dp
     ) {
         Row(
             modifier = Modifier
@@ -77,11 +92,24 @@ fun AppHealthCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // App Icon
-            AppIconImage(
-                drawable = app.icon,
-                size = 48.dp
-            )
+            // App Icon with elevated cyber frame
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CyberSurfaceElevated)
+                    .border(
+                        1.dp,
+                        categoryColor.copy(alpha = 0.28f),
+                        RoundedCornerShape(14.dp)
+                    )
+                    .padding(2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AppIconImage(
+                    drawable = app.icon,
+                    size = 46.dp
+                )
+            }
 
             Spacer(modifier = Modifier.width(14.dp))
 
@@ -178,7 +206,8 @@ fun AppHealthCard(
                     text = "${app.healthScore}",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        color = categoryColor
+                        color = categoryColor,
+                        fontSize = 22.sp
                     )
                 )
 
